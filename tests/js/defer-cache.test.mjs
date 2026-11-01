@@ -33,6 +33,39 @@ test('JS-18: 上限は 64 件で、古い順に捨てる', () => {
     assert.equal(urls.includes('/_defer/69'), true);
 });
 
+test('JS-18: 上限ちょうどでも、既存の項目の上書きは他を捨てない', () => {
+    const storage = memoryStorage();
+    let clock = 0;
+    const store = createDeferStore(() => storage, () => ++clock, 2);
+    store.write('/_defer/a', 'a');
+    store.write('/_defer/b', 'b');
+    store.write('/_defer/b', 'b2');
+    assert.deepEqual(store.urls().sort(), ['/_defer/a', '/_defer/b']);
+    assert.equal(store.read('/_defer/b'), 'b2');
+});
+
+test('JS-18: localStorage が満杯でも読めて、消せて、古いものを捨てて書ける', () => {
+    const storage = memoryStorage();
+    let clock = 0;
+    const store = createDeferStore(() => storage, () => ++clock);
+    store.write('/_defer/a', 'a');
+    store.write('/_defer/b', 'b');
+    const setItem = storage.setItem;
+    // プローブの 1 文字も入らない状態
+    storage.setItem = (key, value) => {
+        if (storage.length >= 2 && storage.getItem(key) === null) throw new Error('QuotaExceededError');
+        setItem(key, value);
+    };
+    assert.equal(store.read('/_defer/a'), 'a');
+    assert.deepEqual(store.urls().sort(), ['/_defer/a', '/_defer/b']);
+    store.write('/_defer/c', 'c');
+    assert.deepEqual(store.urls().sort(), ['/_defer/b', '/_defer/c']);
+    store.remove('/_defer/b');
+    assert.deepEqual(store.urls(), ['/_defer/c']);
+    store.clear();
+    assert.deepEqual(store.urls(), []);
+});
+
 test('JS-18: バージョンが変われば全部消す', () => {
     const storage = memoryStorage({
         [PREFIX + '__version__']: 'old',

@@ -8,8 +8,13 @@ It uses no session and no state. If you need `useState` or buttons that go throu
 
 ## Install
 
+Run this in a project that has a `composer.json`. The package is not on Packagist yet, so name the repository. Its dependency `polidog/rosanna` is a development version, so `minimum-stability` is needed too.
+
 ```bash
-composer require polidog/rosanna-defer
+composer config repositories.rosanna-defer vcs https://github.com/polidog/rosanna-defer
+composer config minimum-stability dev
+composer config prefer-stable true
+composer require polidog/rosanna-defer:dev-main
 vendor/bin/rosanna-defer publish   # copies rosanna-defer.js to public/
 ```
 
@@ -39,6 +44,8 @@ use Polidog\Rosanna\Defer\RosannaDefer;
 
 $app = new RosannaDefer();
 $app->loadComponentManifest(__DIR__ . '/var/cache/psx/manifest.php');
+// Supplies arguments after $props, such as `$users`. Implements Polidog\Rosanna\Runtime\PsxArgumentResolver; without it the render returns 500
+$app->setArgumentResolver($yourResolver);
 
 // Call before page handling. Returns null unless the path is /_defer/{name}
 $response = $app->handleDeferred();

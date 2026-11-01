@@ -3,9 +3,14 @@
 
 declare(strict_types=1);
 
+// Composer のプロキシが教える場所を先に見る。symlink で入れると __DIR__ は実体のパスで、プロジェクトの場所が分からない
+$composerAutoload = isset($GLOBALS['_composer_autoload_path']) && is_string($GLOBALS['_composer_autoload_path'])
+    ? (realpath($GLOBALS['_composer_autoload_path']) ?: null)
+    : null;
+
 // パッケージのルートで実行した場合と、依存として入った場合 (RT-13.1)
-foreach ([__DIR__ . '/../vendor/autoload.php', __DIR__ . '/../../../autoload.php'] as $autoload) {
-    if (file_exists($autoload)) {
+foreach ([$composerAutoload, __DIR__ . '/../vendor/autoload.php', __DIR__ . '/../../../autoload.php'] as $autoload) {
+    if ($autoload !== null && file_exists($autoload)) {
         require $autoload;
         break;
     }
@@ -50,10 +55,10 @@ $help = static function (): void {
     echo "\n";
 };
 
-$publish = static function () use ($fail): int {
+$publish = static function () use ($fail, $composerAutoload): int {
     // RT-13.2 パッケージの 3 階層上が vendor
-    $vendorDir = dirname(__DIR__, 3);
-    if (basename($vendorDir) !== 'vendor') {
+    $vendorDir = $composerAutoload !== null ? dirname($composerAutoload) : dirname(__DIR__, 3);
+    if ($composerAutoload === null && basename($vendorDir) !== 'vendor') {
         // RT-13.3
         echo "Note: running from the package root. rosanna-defer.js is already in public/\n";
 

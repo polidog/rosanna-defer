@@ -8,8 +8,13 @@
 
 ## インストール
 
+`composer.json` のあるプロジェクトで実行します。まだ Packagist に登録していないので、リポジトリを指定します。依存の `polidog/rosanna` が開発版なので `minimum-stability` も要ります。
+
 ```bash
-composer require polidog/rosanna-defer
+composer config repositories.rosanna-defer vcs https://github.com/polidog/rosanna-defer
+composer config minimum-stability dev
+composer config prefer-stable true
+composer require polidog/rosanna-defer:dev-main
 vendor/bin/rosanna-defer publish   # public/rosanna-defer.js を配置する
 ```
 
@@ -39,6 +44,8 @@ use Polidog\Rosanna\Defer\RosannaDefer;
 
 $app = new RosannaDefer();
 $app->loadComponentManifest(__DIR__ . '/var/cache/psx/manifest.php');
+// `$users` のような第 2 引数以降を渡す。Polidog\Rosanna\Runtime\PsxArgumentResolver の実装で、なければ描画は 500 になる
+$app->setArgumentResolver($yourResolver);
 
 // ページの処理より前に呼ぶ。`/_defer/{名前}` でなければ null
 $response = $app->handleDeferred();
