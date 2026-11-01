@@ -8,13 +8,8 @@
 
 ## インストール
 
-`composer.json` のあるプロジェクトで実行します。まだ Packagist に登録していないので、リポジトリを指定します。依存の `polidog/rosanna` が開発版なので `minimum-stability` も要ります。
-
 ```bash
-composer config repositories.rosanna-defer vcs https://github.com/polidog/rosanna-defer
-composer config minimum-stability dev
-composer config prefer-stable true
-composer require polidog/rosanna-defer:dev-main
+composer require polidog/rosanna-defer
 vendor/bin/rosanna-defer publish   # public/rosanna-defer.js を配置する
 ```
 
