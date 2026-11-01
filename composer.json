@@ -1,0 +1,59 @@
+{
+    "name": "polidog/rosanna-defer",
+    "description": "Deferred fragments for Rosanna: placeholders, a GET endpoint, client caching and rosanna-defer.js, without sessions or state",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "polidog",
+            "email": "polidogs@gmail.com"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/polidog/rosanna"
+        }
+    ],
+    "require": {
+        "php": ">=8.5",
+        "polidog/rosanna": "0.0.x-dev"
+    },
+    "require-dev": {
+        "composer/composer": "^2.8",
+        "friendsofphp/php-cs-fixer": "^3.93",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.0",
+        "vimeo/psalm": "^6.14"
+    },
+    "autoload": {
+        "psr-4": {
+            "Polidog\\Rosanna\\Defer\\": "src/"
+        },
+        "files": [
+            "src/functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Polidog\\Rosanna\\Defer\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/rosanna-defer"
+    ],
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.0.x-dev"
+        }
+    },
+    "scripts": {
+        "phpstan": "phpstan analyse",
+        "psalm": "psalm --no-progress",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix",
+        "test": "phpunit"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
