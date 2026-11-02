@@ -134,6 +134,80 @@ final class RosannaDeferTest extends TestCase
         self::assertSame('<div><div data-rosanna-defer-url="/_defer/inner"></div></div>', $body);
     }
 
+    public function testDF6AComponentNestedInItselfStaysAPlaceholder(): void
+    {
+        $tree = null;
+        $tree = deferred(static function (array $props) use (&$tree): Element {
+            $depth = (int) $props['depth'];
+
+            return H::div(children: [(string) $depth, $depth > 0 ? $tree(['depth' => $depth - 1]) : null]);
+        }, new Defer('tree'));
+        $app = new RosannaDefer()->registerComponent('App\\Tree', $tree);
+
+        self::assertSame(
+            '<div>2<div data-rosanna-defer-url="/_defer/tree?depth=1"></div></div>',
+            $app->handleDeferred(self::get('/_defer/tree', ['depth' => '2']))?->body,
+        );
+    }
+
+    public function testDF6AComponentWithoutAStopConditionDoesNotRecurse(): void
+    {
+        $loop = null;
+        $loop = deferred(static function () use (&$loop): Element {
+            return H::div(children: [$loop()]);
+        }, new Defer('loop'));
+        $app = new RosannaDefer()->registerComponent('App\\Loop', $loop);
+
+        $response = $app->handleDeferred(self::get('/_defer/loop'));
+
+        self::assertSame(200, $response?->status);
+        self::assertSame('<div><div data-rosanna-defer-url="/_defer/loop"></div></div>', $response->body);
+    }
+
+    public function testDF14RegisterComponentRegistersTheDeclaration(): void
+    {
+        $app = new RosannaDefer()->registerComponent('App\\Pub', deferred(static fn(): Element => H::p(children: 'x'), new Defer('pub', cacheControl: 'public, max-age=60')));
+
+        $response = $app->handleDeferred(self::get('/_defer/pub'));
+
+        self::assertSame(200, $response?->status);
+        self::assertSame('public, max-age=60', $response->headers['Cache-Control']);
+    }
+
+    public function testDF14RegisterDeferredWithoutAPolicyKeepsTheDeclaredOneInEitherOrder(): void
+    {
+        $component = deferred(static fn(): Element => H::p(children: 'x'), new Defer('pub', cacheControl: 'public, max-age=60'));
+        $after = new RosannaDefer()->registerComponent('App\\Pub', $component)->registerDeferred('pub', 'App\\Pub');
+        $before = new RosannaDefer()->registerDeferred('pub', 'App\\Pub')->registerComponent('App\\Pub', $component);
+
+        self::assertSame('public, max-age=60', $after->handleDeferred(self::get('/_defer/pub'))?->headers['Cache-Control']);
+        self::assertSame('public, max-age=60', $before->handleDeferred(self::get('/_defer/pub'))?->headers['Cache-Control']);
+    }
+
+    public function testDF14AConflictingPolicyIsRefused(): void
+    {
+        $app = new RosannaDefer()->registerComponent('App\\Pub', deferred(static fn(): Element => H::p(children: 'x'), new Defer('pub', cacheControl: 'public, max-age=60')));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $app->registerDeferred('pub', 'App\\Pub', 'private');
+    }
+
+    public function testDF14TwoComponentsCannotDeclareTheSameName(): void
+    {
+        $app = new RosannaDefer()->registerComponent('App\\A', self::echoProps('same'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $app->registerComponent('App\\B', self::echoProps('same'));
+    }
+
+    public function testDF3RegisteringTheSameNameTwiceExplicitlyIsStillRefused(): void
+    {
+        $app = new RosannaDefer()->registerComponent('App\\Echo', self::echoProps())->registerDeferred('echo', 'App\\Echo');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $app->registerDeferred('echo', 'App\\Echo');
+    }
+
     public function testAPlainPsxFunctionCanBeATarget(): void
     {
         $app = new RosannaDefer()

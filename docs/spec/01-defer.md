@@ -51,9 +51,10 @@ function deferred(callable $component, Defer $defer): Deferred;
 - **DF-1** GET で、パスが prefix か prefix 配下のときだけ処理する。それ以外は `null` (`usePHP/src/UsePHP.php:1828-1835`)。
 - **DF-2** 名前は `[A-Za-z0-9_-]+`。不正なら 404。未登録も 404。404 は `no-store` (`usePHP/src/UsePHP.php:1846-1856`)。
 - **DF-3** 同じ名前の登録は例外。同じ内容の自動登録は何もしない (`usePHP/src/UsePHP.php:355-388`)。
+- **DF-14** `RosannaDefer::registerComponent()` は、`Defer` を宣言するコンポーネントをエンドポイントにも登録する。ページにプレースホルダーが出るのにエンドポイントが 404 になるのを防ぐ。`registerDeferred()` は順を問わず宣言とまとめ、方針を省くと宣言の方針を使う。別のコンポーネントが同じ名前を宣言するか、方針が矛盾するときは例外。
 - **DF-4** クエリを props にする。`key`、`fallback` は取り除く。`key` がインスタンスの ID を決めるので、URL から他人の状態を選べないようにする。スカラーでない値は 400 (`usePHP/src/UsePHP.php:1865-1884`)。
 - **DF-5** 既定の `Cache-Control` は `private, max-age=0`。登録の値があれば使う (`usePHP/src/UsePHP.php:1886`)。
-- **DF-6** 新しい描画のパスで描画し、対象自身はプレースホルダを飛ばす。ネストした defer はプレースホルダのまま (`usePHP/src/UsePHP.php:1889-1898`)。
+- **DF-6** 新しい描画のパスで描画し、対象自身はプレースホルダを飛ばす。ネストした defer はプレースホルダのまま (`usePHP/src/UsePHP.php:1889-1898`)。対象が自分の中にもう 1 つあれば、それもネストとして扱う。クライアントは、祖先の断片と同じ URL の defer を取得しない。
 - **DF-7** 描画の例外はログに詳細を出し、500 と `Failed to render deferred component.` と `no-store` を返す。例外のメッセージをクライアントに見せない (`usePHP/src/UsePHP.php:1902-1917`)。
 - **DF-8** **描画の後に共有キャッシュを確かめる。コミット `4621f0f`。** ポリシーが共有キャッシュを許すとき、または送信予定のヘッダーが許すとき、次のどちらかなら `Cache-Control: private, no-store` に置き換えてログに出す (`usePHP/src/UsePHP.php:1952-1988`)。
   - セッションがアクティブ、または読んで閉じられた (`session_id()` が空でない)。
@@ -70,9 +71,9 @@ function deferred(callable $component, Defer $defer): Deferred;
 
 `rosanna.js` と一緒に使うときは `rosanna.js` の後に読み込む (`RosannaState::renderClientScript()` はこの順に出す)。`rosanna.js` は `window.Rosanna.__defer` を読み込まれた後に使い、なければ何もしない。断片を置いたときは `window.Rosanna.__onDeferPlaced` があれば呼ぶ。どちらも内部の接点で、公開 API ではない。
 
-- **JS-16** プレースホルダの URL は、ページと**同一オリジン**で、defer の prefix 配下のときだけ取得する。応答の `Content-Type` が `text/html` のときだけ挿入する。それ以外は console に警告して何もしない。サニタイザーを抜けた `data-*` で任意の内容を流し込まれるのを防ぐ。**コミット `739714f`** (`usePHP/public/usephp.js:96-136`, `:1094-1101`)。
-- **JS-17** フォーム、`type=hidden` の入力、`_rosanna_csrf`、`_rosanna_snapshot`、`data-rosanna-snapshot` を含む断片は `localStorage` に書かない。`localCache` の指定があっても書かない。共有端末で次の利用者にトークンが渡るのを防ぐ (`usePHP/public/usephp.js:141-153`, `:1121-1130`)。
-- **JS-18** キャッシュはページ内のメモリと、指定があるときの `localStorage` の 2 段。`localStorage` の上限は 64 件で古い順に捨てる。バージョンが変われば全部消す。`localStorage` がなければメモリだけで動く (`usePHP/public/usephp.js:79-91`, `:187-420`)。
+- **JS-16** プレースホルダの URL は、ページと**同一オリジン**で、defer の prefix 配下のときだけ取得する。リダイレクトの後の URL にも同じ条件を課す。応答の `Content-Type` が `text/html` のときだけ挿入する。それ以外は console に警告して何もしない。サニタイザーを抜けた `data-*` で任意の内容を流し込まれるのを防ぐ。**コミット `739714f`** (`usePHP/public/usephp.js:96-136`, `:1094-1101`)。
+- **JS-17** フォーム、`type=hidden` の入力、`_rosanna_csrf`、`_rosanna_snapshot`、`data-rosanna-snapshot` を `<template>` の中も含めて持つ断片は `localStorage` に書かない。`localCache` の指定があっても書かない。共有端末で次の利用者にトークンが渡るのを防ぐ (`usePHP/public/usephp.js:141-153`, `:1121-1130`)。
+- **JS-18** キャッシュはページ内のメモリと、指定があるときの `localStorage` の 2 段。`localStorage` の上限は 64 件で古い順に捨てる (既存の項目の上書きでは捨てない)。バージョンが変われば全部消す。`localStorage` がなければメモリだけで動く。満杯でも読めて消せる。`reloadDefer` は断片の中の defer にもキャッシュを使わない (`usePHP/public/usephp.js:79-91`, `:187-420`)。
 - **JS-19** 同時の取得は 1 つ。`reloadDefer` は新しい取得で前を中断し、古い応答は捨てる (`usePHP/public/usephp.js:160-175`, `:986-1135`)。
 - **JS-20** `data-rosanna-reload-defer` はフォームなら部分更新の成功の後、それ以外は click で動く。一覧の取得が他の取得より先に走るよう、defer の再走査より前に動かす (`usePHP/public/usephp.js:512-562`, `:739-755`)。
 

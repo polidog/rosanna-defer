@@ -8,7 +8,6 @@ const {
     parseCacheTtlMs,
     parseReloadTargets,
     resolveDeferUrl,
-    sameOriginRedirect,
 } = loadClient();
 
 const page = 'https://app.example/todos?x=1';
@@ -54,13 +53,6 @@ test('JS-16: 応答は text/html だけを受ける', () => {
     for (const type of ['application/json', 'text/plain', 'text/htmlx', 'application/xhtml+xml', '', null]) {
         assert.equal(isHtmlContentType(type), false, String(type));
     }
-});
-
-test('JS-4: 同一オリジンの redirect だけを行き先にする', () => {
-    assert.equal(sameOriginRedirect('https://app.example/todos', page), 'https://app.example/todos');
-    assert.equal(sameOriginRedirect('https://evil.example/', page), null);
-    assert.equal(sameOriginRedirect('http://app.example/', page), null);
-    assert.equal(sameOriginRedirect('http://[bad', page), null);
 });
 
 test('JS-18: 名前は URL の最後のセグメントで引く', () => {

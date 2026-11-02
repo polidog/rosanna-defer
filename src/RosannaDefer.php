@@ -32,9 +32,19 @@ final class RosannaDefer
         );
     }
 
+    /**
+     * `Defer` を宣言するコンポーネントはエンドポイントにも登録する (DF-14)。
+     *
+     * @throws \InvalidArgumentException 別のコンポーネントが同じ名前を使っているか、方針が矛盾するとき
+     */
     public function registerComponent(string $fqcn, callable $component): self
     {
         $this->rosanna->registerComponent($fqcn, $component);
+
+        $defer = $component instanceof DeclaresDefer ? $component->deferDeclaration() : null;
+        if ($defer !== null) {
+            $this->deferred->registerDeclared($defer->name, $fqcn, $defer->cacheControl);
+        }
 
         return $this;
     }
@@ -63,6 +73,7 @@ final class RosannaDefer
 
     /**
      * 同じ名前の登録は例外 (DF-3)。名前は URL になるので、別の内容を黙って上書きしない。
+     * `registerComponent()` の宣言と同じ内容なら重複にせず、方針を省くと宣言の方針を使う (DF-14)。
      *
      * @throws \InvalidArgumentException 名前が不正か、登録済みのとき
      */

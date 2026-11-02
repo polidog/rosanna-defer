@@ -42,16 +42,6 @@
         return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null;
     }
 
-    /** JS-4 同一オリジンの行き先だけ返す */
-    function sameOriginRedirect(url, pageHref) {
-        try {
-            const target = new URL(url, pageHref);
-            return target.origin === new URL(pageHref).origin ? target.href : null;
-        } catch {
-            return null;
-        }
-    }
-
     function normalizeDeferPrefix(configured) {
         const prefix = typeof configured === 'string' && configured !== '' ? configured : DEFAULT_DEFER_PREFIX;
         return prefix.replace(/\/+$/, '');
@@ -142,12 +132,8 @@
     function createDeferStore(getStorage, now = Date.now, max = DEFER_CACHE_MAX, version = DEFER_CACHE_VERSION) {
         const storage = () => {
             try {
-                const store = getStorage();
-                if (!store) return null;
-                const probe = DEFER_LS_PREFIX + '__probe__';
-                store.setItem(probe, '1');
-                store.removeItem(probe);
-                return store;
+                // 書き込みで確かめない。満杯のときも読めて消せる。書き込みの失敗は write が扱う
+                return getStorage() || null;
             } catch {
                 return null;
             }
@@ -157,20 +143,19 @@
             const record = parseJsonObject(store.getItem(key));
             return record !== null && record.v === version && typeof record.html === 'string' ? record : null;
         };
-        const makeRoom = (store) => {
+        // incoming は書こうとしている項目。上書きでは件数が増えないので数えない。残った項目を古い順に返す
+        const makeRoom = (store, incoming) => {
             const records = [];
             for (const key of entryKeys(store)) {
                 const record = readRecord(store, key);
                 if (record === null) {
                     store.removeItem(key);
-                } else {
+                } else if (key !== incoming) {
                     records.push({ key, storedAt: typeof record.storedAt === 'number' ? record.storedAt : 0 });
                 }
             }
             records.sort((a, b) => a.storedAt - b.storedAt);
-            for (let i = 0; i < records.length - max + 1; i++) {
-                store.removeItem(records[i].key);
-            }
+            records.splice(0, Math.max(0, records.length - max + 1)).forEach(({ key }) => store.removeItem(key));
             return records;
         };
 
@@ -208,12 +193,12 @@
                 const key = DEFER_LS_PREFIX + url;
                 const record = JSON.stringify({ v: version, html, storedAt: now() });
                 try {
-                    makeRoom(store);
+                    makeRoom(store, key);
                     store.setItem(key, record);
                 } catch {
                     // 容量が足りないときは最も古いものを捨てて 1 回だけやり直す
                     try {
-                        const oldest = makeRoom(store)[0];
+                        const oldest = makeRoom(store, key)[0];
                         if (oldest) store.removeItem(oldest.key);
                         store.setItem(key, record);
                     } catch {
@@ -266,7 +251,6 @@
                 parseCacheTtlMs,
                 parseReloadTargets,
                 resolveDeferUrl,
-                sameOriginRedirect,
             };
         }
         return;
@@ -309,20 +293,23 @@
         return deferStates.get(el);
     }
 
+    // querySelector は template の中に入らない
     function fragmentHoldsSessionData(content) {
-        return content.querySelector(SESSION_BOUND_SELECTOR) !== null;
+        if (content.querySelector(SESSION_BOUND_SELECTOR) !== null) return true;
+        return [...content.querySelectorAll('template')].some((template) => fragmentHoldsSessionData(template.content));
     }
 
-    // data-rosanna-defer-name があるものはラッパーを残し、後から取得し直せるようにする
-    function placeFragment(el, fragment) {
+    // data-rosanna-defer-name があるものはラッパーを残し、後から取得し直せるようにする。
+    // nested は断片の中の defer に引き継ぐ loadDefer の指定
+    function placeFragment(el, fragment, nested) {
         resolvedDefers.add(el.getAttribute('data-rosanna-defer-url'));
         if (el.hasAttribute('data-rosanna-defer-name')) {
             el.replaceChildren(fragment);
             el.removeAttribute('aria-busy');
             el.setAttribute('data-rosanna-defer-loaded', '');
-            processDeferred(el);
+            processDeferred(el, nested);
         } else {
-            processDeferred(fragment);
+            processDeferred(fragment, nested);
             el.replaceWith(fragment);
         }
         // rosanna.js があれば、断片の中のインスタンスを扱う
@@ -362,8 +349,10 @@
             console.warn('[Rosanna] defer fetch returned', response.status, response.statusText, url);
             return false;
         }
-        if (sameOriginRedirect(response.url, location.href) === null) {
-            console.warn('[Rosanna] refusing defer response: redirected to another origin', response.url);
+        // JS-16 リダイレクトの先も同じ条件で確かめる。ログイン画面などを断片として挿入しない。
+        // Service Worker が作った応答の url は空で、リダイレクトではない
+        if (response.url !== '' && resolveDeferUrl(response.url, Rosanna.deferPrefix, location.href) === null) {
+            console.warn('[Rosanna] refusing defer response: redirected outside the same-origin defer prefix', response.url);
             return false;
         }
         if (!isHtmlContentType(response.headers.get('content-type'))) {
@@ -373,8 +362,10 @@
         return true;
     }
 
-    // JS-19 force は reloadDefer だけが使う。前の取得を中断して置き換える。それ以外は実行中の取得に譲る
-    async function loadDefer(el, { force = false } = {}) {
+    // JS-19 force は前の取得を中断して置き換える。それ以外は実行中の取得に譲る。
+    // JS-18 fresh はキャッシュを使わず、断片の中の defer にも引き継ぐ。親を取得し直して子だけ古くならないようにする。
+    // DF-6 ancestors はこの要素を含む断片の URL。自分を含む断片を取得し続けない
+    async function loadDefer(el, { force = false, fresh = false, ancestors = new Set() } = {}) {
         const url = el.getAttribute('data-rosanna-defer-url');
         if (!url) return;
 
@@ -385,6 +376,10 @@
             return;
         }
         if (el.hasAttribute('data-rosanna-defer-loaded')) return;
+        if (ancestors.has(url)) {
+            console.warn('[Rosanna] refusing defer fetch: the fragment contains itself', url);
+            return;
+        }
 
         const state = deferState(el);
         if (state.running && !force) return;
@@ -396,11 +391,13 @@
         state.running = true;
         state.epoch = refreshEpoch;
         const startedAt = refreshEpoch;
+        const nested = { fresh, ancestors: new Set(ancestors).add(url) };
 
         try {
+            if (fresh) clearDeferCache(url);
             const cached = readCachedFragment(el, url);
             if (cached) {
-                placeFragment(el, cached);
+                placeFragment(el, cached, nested);
                 return;
             }
 
@@ -420,7 +417,7 @@
             // 新しい取得に負けても、この URL の断片としては正しいのでキャッシュには入れる。
             // ただしセッションができる前に取得したフォームは古い (JS-23)
             if (startedAt === refreshEpoch || !fragmentHoldsSessionData(content)) rememberFragment(el, url, html, content);
-            if (isLatest()) placeFragment(el, content);
+            if (isLatest()) placeFragment(el, content, nested);
         } catch (error) {
             if (!error || error.name !== 'AbortError') {
                 console.warn('[Rosanna] defer fetch failed:', error, url);
@@ -434,9 +431,9 @@
         }
     }
 
-    function processDeferred(root) {
+    function processDeferred(root, options) {
         for (const el of (root || document).querySelectorAll('[data-rosanna-defer-url]:not([data-rosanna-defer-loaded])')) {
-            loadDefer(el);
+            loadDefer(el, options);
         }
     }
 
@@ -461,10 +458,9 @@
                 && url !== target && !deferUrlMatchesName(url, target)) {
                 continue;
             }
-            clearDeferCache(url);
             el.removeAttribute('data-rosanna-defer-loaded');
             count++;
-            loadDefer(el, { force: true });
+            loadDefer(el, { force: true, fresh: true });
         }
         return count;
     }
@@ -560,7 +556,7 @@
 
     /** @internal rosanna.js のため */
     Rosanna.__defer = {
-        process: processDeferred,
+        process: (root) => processDeferred(root),
         dispatchReload: dispatchReloadDefer,
         fillResolved: fillResolvedDefers,
         sessionChanged() {
