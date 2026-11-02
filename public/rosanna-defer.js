@@ -265,6 +265,9 @@
     const Rosanna = Object.prototype.toString.call(existing) === '[object Object]' ? existing : {};
     window.Rosanna = Rosanna;
 
+    // JS-21 2 回目の読み込みでは、取得もリスナーも重ねない
+    if (Rosanna.__defer) return;
+
     function startElement(event) {
         if (event.target instanceof Element) return event.target;
         return event.target && event.target.parentElement ? event.target.parentElement : null;
