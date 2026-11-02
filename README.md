@@ -8,13 +8,8 @@ It uses no session and no state. If you need `useState` or buttons that go throu
 
 ## Install
 
-Run this in a project that has a `composer.json`. The package is not on Packagist yet, so name the repository. Its dependency `polidog/rosanna` is a development version, so `minimum-stability` is needed too.
-
 ```bash
-composer config repositories.rosanna-defer vcs https://github.com/polidog/rosanna-defer
-composer config minimum-stability dev
-composer config prefer-stable true
-composer require polidog/rosanna-defer:dev-main
+composer require polidog/rosanna-defer
 vendor/bin/rosanna-defer publish   # copies rosanna-defer.js to public/
 ```
 
