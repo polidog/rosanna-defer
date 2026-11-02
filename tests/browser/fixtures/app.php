@@ -92,6 +92,11 @@ $body = $app->renderElement(match ($_GET['scene'] ?? null) {
     ]),
 });
 
-echo '<!doctype html><html><head><meta charset="utf-8"><title>fixture</title>', RosannaDefer::renderClientScript($src), '</head><body>', $body, '</body></html>';
+$script = RosannaDefer::renderClientScript($src);
+if (($_GET['script'] ?? null) === 'twice') {
+    $script .= RosannaDefer::renderClientScript($src);
+}
+
+echo '<!doctype html><html><head><meta charset="utf-8"><title>fixture</title>', $script, '</head><body>', $body, '</body></html>';
 
 return true;

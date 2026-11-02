@@ -66,6 +66,24 @@ test('localCache は再読み込みで使われ、フォームを含む断片は
   expect(hits).toContain('/_defer/with-form');
 });
 
+test('JS-21: 2 回読み込んでも、断片の取得とリロードは 1 回ずつ', async ({ page }) => {
+  const hits: string[] = [];
+  page.on('request', (request) => hits.push(new URL(request.url()).pathname));
+  await page.goto(`${baseURL}/?script=twice`);
+  // どちらのスクリプトも DOMContentLoaded で一緒に動くので、応答が届く前に取得は出揃っている
+  const count = page.locator('#count');
+  await expect(page.locator('#plain')).toHaveText('plain a');
+  await expect(count).toHaveText(/^count=\d+$/);
+  expect(hits.filter((path) => path === '/_defer/plain')).toHaveLength(1);
+  expect(hits.filter((path) => path === '/_defer/count')).toHaveLength(1);
+
+  hits.length = 0;
+  const before = await count.textContent();
+  await page.locator('#reload').click();
+  await expect(count).not.toHaveText(before ?? '');
+  expect(hits.filter((path) => path === '/_defer/count')).toHaveLength(1);
+});
+
 test('data-rosanna-reload-defer と reloadDefer で取得し直す', async ({ page }) => {
   await page.goto(`${baseURL}/`);
   const count = page.locator('#count');

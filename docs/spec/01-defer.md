@@ -76,6 +76,7 @@ function deferred(callable $component, Defer $defer): Deferred;
 - **JS-18** キャッシュはページ内のメモリと、指定があるときの `localStorage` の 2 段。`localStorage` の上限は 64 件で古い順に捨てる (既存の項目の上書きでは捨てない)。バージョンが変われば全部消す。`localStorage` がなければメモリだけで動く。満杯でも読めて消せる。`reloadDefer` は断片の中の defer にもキャッシュを使わない (`usePHP/public/usephp.js:79-91`, `:187-420`)。
 - **JS-19** 同時の取得は 1 つ。`reloadDefer` は新しい取得で前を中断し、古い応答は捨てる (`usePHP/public/usephp.js:160-175`, `:986-1135`)。
 - **JS-20** `data-rosanna-reload-defer` はフォームなら部分更新の成功の後、それ以外は click で動く。一覧の取得が他の取得より先に走るよう、defer の再走査より前に動かす (`usePHP/public/usephp.js:512-562`, `:739-755`)。
+- **JS-21** 同じページで 2 回読み込まれたら、2 回目は何もしない。`window.Rosanna.__defer` があるかで判定する。`RosannaDefer` と `RosannaState` の両方の `renderClientScript()` を出すとタグが 2 つになり、取得とリスナーが重なるのを防ぐ。
 
 公開 API は `window.Rosanna.reloadDefer(name?)` と `window.Rosanna.clearDeferCache(name?)`。
 
