@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace Polidog\Rosanna\Defer;
 
+use function Polidog\Rosanna\Defer\Internal\Functions\allowsSharedCache;
+use function Polidog\Rosanna\Defer\Internal\Functions\deferredNameFromPath;
+use function Polidog\Rosanna\Defer\Internal\Functions\deferredProps;
+use function Polidog\Rosanna\Defer\Internal\Functions\escape;
+use function Polidog\Rosanna\Defer\Internal\Functions\normalizePrefix;
+use function Polidog\Rosanna\Defer\Internal\Functions\pendingAllowsSharedCache;
+
 /**
  * `{prefix}/{name}` の GET に、登録された対象の HTML で答える。
  *
@@ -24,12 +31,7 @@ final class DeferredEndpoint
     /** @throws \InvalidArgumentException `/` で始まらないか、ルートそのものを指すとき */
     public static function normalizePrefix(string $prefix): string
     {
-        $normalized = rtrim($prefix, '/');
-        if ($normalized === '' || !str_starts_with($normalized, '/') || str_starts_with($normalized, '//')) {
-            throw new \InvalidArgumentException("Defer prefix must be a path like '/_defer', got: '{$prefix}'");
-        }
-
-        return $normalized;
+        return normalizePrefix($prefix);
     }
 
     /**
@@ -37,31 +39,24 @@ final class DeferredEndpoint
      */
     public function handle(DeferRequest $request): ?DeferResponse
     {
-        if ($request->method !== 'GET' || ($request->path !== $this->prefix && !str_starts_with($request->path, $this->prefix . '/'))) {
+        $name = $request->method === 'GET' ? deferredNameFromPath($this->prefix, $request->path) : null;
+        if ($name === null) {
             return null;
         }
-
-        $name = rawurldecode(substr($request->path, strlen($this->prefix) + 1));
         if (!Defer::isValidName($name)) {
             return self::plainResponse(404, 'Not Found');
         }
 
         $registration = $this->registry->get($name);
         if ($registration === null) {
-            return self::plainResponse(404, 'Deferred component not registered: ' . self::escape($name));
+            return self::plainResponse(404, 'Deferred component not registered: ' . escape($name));
         }
 
-        // DF-4 key がインスタンスの ID を決めるので、URL から他人の状態を選ばせない
-        $props = [];
-        foreach ($request->query as $param => $value) {
-            $param = (string) $param;
-            if ($param === 'key' || $param === 'fallback') {
-                continue;
-            }
+        $props = deferredProps($request->query);
+        foreach ($props as $param => $value) {
             if (!is_scalar($value)) {
-                return self::plainResponse(400, 'Deferred component param "' . self::escape($param) . '" must be a scalar.');
+                return self::plainResponse(400, 'Deferred component param "' . escape($param) . '" must be a scalar.');
             }
-            $props[$param] = $value;
         }
 
         try {
@@ -110,7 +105,7 @@ final class DeferredEndpoint
     private static function cacheControlFor(string $name, string $policy): string
     {
         $pending = headers_list();
-        if (!self::allowsSharedCache($policy) && !self::pendingAllowsSharedCache($pending)) {
+        if (!allowsSharedCache($policy) && !pendingAllowsSharedCache($pending)) {
             return $policy;
         }
 
@@ -138,33 +133,8 @@ final class DeferredEndpoint
         return 'private, no-store';
     }
 
-    /** `private` か `no-store` を含まないものを共有キャッシュを許すと扱う。フィールド名つきの `private="x"` は含まない */
-    private static function allowsSharedCache(string $cacheControl): bool
-    {
-        $directives = array_map(trim(...), explode(',', strtolower($cacheControl)));
-
-        return !in_array('private', $directives, true) && !in_array('no-store', $directives, true);
-    }
-
-    /** @param list<string> $headers */
-    private static function pendingAllowsSharedCache(array $headers): bool
-    {
-        foreach ($headers as $header) {
-            if (stripos($header, 'cache-control:') === 0 && self::allowsSharedCache(substr($header, strlen('cache-control:')))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static function plainResponse(int $status, string $body): DeferResponse
     {
         return new DeferResponse($status, ['Content-Type' => 'text/plain; charset=UTF-8', 'Cache-Control' => 'no-store'], $body);
-    }
-
-    private static function escape(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

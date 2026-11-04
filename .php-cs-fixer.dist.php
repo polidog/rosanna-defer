@@ -8,6 +8,7 @@ use PhpCsFixer\Runner\Parallel\ParallelConfigFactory;
 
 $finder = (new Finder())
     ->in(__DIR__ . '/src')
+    ->in(__DIR__ . '/src-functions')
     ->in(__DIR__ . '/tests')
     ->exclude(['browser', 'var'])
 ;
