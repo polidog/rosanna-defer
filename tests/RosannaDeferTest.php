@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Polidog\Rosanna\Defer\Tests;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Polidog\Rosanna\Defer\ClientScript;
 use Polidog\Rosanna\Defer\Defer;
@@ -65,20 +64,11 @@ final class RosannaDeferTest extends TestCase
         self::assertSame(200, $app->handleDeferred(self::get('/api/_d/echo'))?->status);
     }
 
-    /** @return iterable<string, array{string}> */
-    public static function badPrefixes(): iterable
-    {
-        yield 'empty' => [''];
-        yield 'root' => ['/'];
-        yield 'relative' => ['_defer'];
-        yield 'protocol relative' => ['//evil.example'];
-    }
-
-    #[DataProvider('badPrefixes')]
-    public function testBadPrefixThrows(string $prefix): void
+    /** 値の列挙は normalizePrefix() のテストで見る */
+    public function testBadPrefixThrows(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new RosannaDefer()->setDeferPrefix($prefix);
+        new RosannaDefer()->setDeferPrefix('//evil.example');
     }
 
     public function testOtherRequestsAreLeftToTheHost(): void

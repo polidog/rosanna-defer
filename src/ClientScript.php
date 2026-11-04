@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Polidog\Rosanna\Defer;
 
+use function Polidog\Rosanna\Defer\Internal\Functions\escape;
+use function Polidog\Rosanna\Defer\Internal\Functions\nonceAttribute;
+
 /**
  * rosanna-defer.js の配信。CSP の nonce で動くよう、インラインのイベントハンドラを使わない。
  */
@@ -47,7 +50,7 @@ final class ClientScript
     /** prefix の設定とフォールバック。外部の script より前に置く */
     public static function inline(?string $deferPrefix = null, ?string $nonce = null): string
     {
-        $nonceAttribute = self::nonceAttribute($nonce);
+        $nonceAttribute = nonceAttribute($nonce);
 
         $prefixScript = '';
         if ($deferPrefix !== null) {
@@ -60,11 +63,6 @@ final class ClientScript
 
     public static function tag(string $src = self::DEFAULT_SRC, ?string $nonce = null): string
     {
-        return '<script src="' . htmlspecialchars($src, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" defer' . self::nonceAttribute($nonce) . '></script>';
-    }
-
-    private static function nonceAttribute(?string $nonce): string
-    {
-        return $nonce === null ? '' : ' nonce="' . htmlspecialchars($nonce, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        return '<script src="' . escape($src) . '" defer' . nonceAttribute($nonce) . '></script>';
     }
 }
