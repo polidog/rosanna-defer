@@ -40,6 +40,9 @@ function deferred(callable $component, Defer $defer): Deferred;
 
 `RosannaState` は同じ処理を `handleDeferred(Request): ?Response` などで公開する。
 
+状態に触らない検査と変換 (prefix の正規化、パスからの名前の取り出し、プレースホルダーの URL、クエリからの props、共有キャッシュの判定、deferred manifest の書き出しと読み取りなど) は
+`src-functions` の名前空間 `Polidog\Rosanna\Defer\Internal\Functions` の関数にある。`@internal` で、公開 API ではない。rosanna シリーズ (polidog/rosanna-*) からは使ってよい。
+
 ## 差し替え口
 
 - `FragmentRenderer` はエンドポイントの対象を HTML にする。既定の `PsxFragmentRenderer` はセッションも描画パスも使わない。状態層は `State\Protocol\DeferredFragments` で実装する。

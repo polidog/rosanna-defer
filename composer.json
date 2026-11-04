@@ -25,7 +25,13 @@
             "Polidog\\Rosanna\\Defer\\": "src/"
         },
         "files": [
-            "src/functions.php"
+            "src/functions.php",
+            "src-functions/text.php",
+            "src-functions/urls.php",
+            "src-functions/requests.php",
+            "src-functions/cache.php",
+            "src-functions/scripts.php",
+            "src-functions/manifest.php"
         ]
     },
     "autoload-dev": {

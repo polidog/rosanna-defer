@@ -17,6 +17,7 @@
     <source>
         <include>
             <directory suffix=".php">src</directory>
+            <directory suffix=".php">src-functions</directory>
         </include>
     </source>
 </phpunit>
