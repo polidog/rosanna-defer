@@ -11,7 +11,7 @@
     ],
     "require": {
         "php": ">=8.5",
-        "polidog/rosanna": "^0.1"
+        "polidog/rosanna": "^1.0"
     },
     "require-dev": {
         "composer/composer": "^2.8",
@@ -38,7 +38,7 @@
     ],
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1.x-dev"
+            "dev-main": "1.0.x-dev"
         }
     },
     "scripts": {
